@@ -1,0 +1,424 @@
+'''' Cybersecurity assignment - Cryptography - Fergan van Jaarsveld - 4164150 for Prof J. Blackledge - University of Western Cape
+        Application UI included below simply run code to display application and its functions
+'''
+import numpy as np
+
+from numpy.fft import fft
+from numpy.fft import fft2, ifft2
+
+import tifffile
+
+from tkinter import filedialog
+from tkinter import*
+
+import random
+import time;
+import sys
+
+import PIL
+from PIL import Image
+
+import io
+from io import BytesIO
+
+import base64
+import codecs
+
+root = Tk()
+Tk().withdraw()
+root.geometry("600x600+0+0")
+root.title("Phase-Only Digital Encryption using a Three-Pass Protocol")
+
+#================Variable Declaration==============================
+keyAB = IntVar()
+keyC = DoubleVar()
+folder_path_textfile = StringVar()
+status_text = StringVar()
+keyC = np.random.rand(1,1)*10**(np.round(np.random.rand(1,1)*6))
+
+#================Window Framing=================================
+Tops = Frame(root, width = 1000, relief = SUNKEN)
+Tops.pack(side=TOP)
+window = Frame(root, width = 1000, relief = SUNKEN)
+window.pack(side=TOP)
+
+#=========================Time======================================
+localtime=time.asctime(time.localtime(time.time()))
+
+#=========================Info======================================
+lblInfo = Label(Tops, font=('arial', 15, 'bold'), text="Phase-Only Digital Encryption \n using a Three-Pass Protocol",fg="Black")
+lblInfo.grid(row=0,column=0)
+
+lblInfo = Label(Tops, font=('arial', 8, 'bold', 'italic'), text=localtime, fg="Black")
+lblInfo.grid(row=1,column=0)
+
+lblInfo = Label(window, font=('arial', 8, 'italic', 'bold'), text="\n \n \n Insert Plaintext (.jpg)", fg="Black")
+lblInfo.grid(row=3,column=0)
+
+lblInfo = Label(window, font=('arial', 8, 'italic','bold'), text="\n \n KEY (string integers no more than 10 digits long) \n", fg="Black")
+lblInfo.grid(row=5,column=0)
+
+lblInfo = Label(window, font=('arial', 8, 'bold'), text=" \n \n Status of Output", fg="Black")
+lblInfo.grid(row=14,column=0)
+
+#=========================Operation=================================
+def browse_button_textfile():
+    file_path=filedialog.askopenfilename()
+    folder_path_textfile.set(file_path)
+    print (folder_path_textfile)
+
+def btnClick_STEP1():
+    with open(folder_path_textfile.get(), "rb") as image:
+        s = base64.b64encode(image.read()).decode('ASCII')
+
+    l1=[c for c in s]
+    P=[ord(c) for c in s]
+    zero =np.zeros((1))
+    P =np.concatenate((zero, P))
+    N=np.size(P.transpose(),axis=0)
+    np.random.seed(keyAB.get())
+    Theta= np.random.rand((N))
+    POS=(np.exp(1j*(np.angle(fft(Theta)))))
+    E=fft(P)*POS+keyC*(POS)
+    E=(np.fft.ifft(E)).real
+    np.savetxt("CipherImage1.jpg", E)
+    status_text.set("cipherImage 1 text file generated")     
+
+def btnClick_STEP2():
+    pic = ""
+    flag = True
+
+    E= np.loadtxt(folder_path_textfile.get())
+    try:
+        N=np.size(E.conj().transpose(),axis=0)
+        E=fft(E)
+        np.random.seed(keyAB.get())
+        Theta= np.random.random((N))
+        E=E*(np.exp(-1j*(np.angle(fft(Theta)))))
+        P=(np.fft.ifft(E)).real
+        P[0] = 0
+        P=np.round(P)
+        P= (P.astype(int))
+        l1=[c for c in P]
+        P=[chr(c) for c in P]
+
+        for character in P:
+            if flag:
+                flag = False
+                continue
+            else:
+                pic = pic + character
+        f = io.BytesIO(base64.b64decode(bytes(pic,'utf-8')))
+        pilimage = Image.open(f)
+        pilimage = pilimage.save("Decrypted_Image.jpg")
+        status_text.set("decrypted Image file generated")
+    except ValueError:
+        status_text.set("ERROR: decrypted Image file NOT generated")
+
+#=========================Display===================================
+txtDisplay = Entry(window, font=('arial',8), textvariable=folder_path_textfile, bd=5,width =50, bg="white")
+txtDisplay.grid(row=4,column=0)
+textvariable=folder_path_textfile.get()
+
+txtDisplay = Entry(window, font=('arial',8), textvariable=keyAB, bd=5, width =20, bg="white")
+txtDisplay.grid(row=5,column=1)
+
+txtDisplay = Entry(window, font=('arial',8), textvariable=status_text, bd=5, width =50, bg="white")
+txtDisplay.grid(row=15,column=0)
+
+#=========================Buttons===================================
+btnbrowsetxt=Button(window, padx=5,pady=5,bd=5,fg="black", font=('arial', 8,'bold'), text="BROWSE Image File",
+bg ="brown", command =browse_button_textfile).grid(row=4,column=1)
+
+btnstep1=Button(window, padx=5,pady=5,bd=5,fg="black", font=('arial', 12,'bold'), text="Encrypt",
+bg ="powder blue", command =btnClick_STEP1).grid(row=9,column=0)
+
+btnstep4=Button(window, padx=5,pady=5,bd=5,fg="black", font=('arial', 12,'bold'), text="Decrypt",
+bg ="powder blue", command =btnClick_STEP2).grid(row=12,column=0)
+
+root.mainloop()
+
+class StegCrypt(object):
+
+    ''' Information Hiding with Data Diffusion using Convolutional
+    Encoding for Super-encryption. Hides an image, the 'Plaintext',
+    in a chosen camouflage image, the 'Covertext' to produce a
+    'Stegotext' image. Also performs decryption of the stegotext
+    image using the input covertext as a key. '''
+
+
+# Hidden utility functions
+    def _key_generator(self, channel):
+        channel = channel * 1e10
+        # 32-bit integer required for random seed in numpy
+        key = int(np.floor(np.sqrt(np.sum(channel ** 2)))
+               % 2 ** 32)
+        return key
+
+    def _hide_data(self, covertext, sdiffuse, c):
+        return ifft2(c * fft2(sdiffuse) + fft2(covertext)).real
+
+    def _recover_data(self, covertext, stegotext):
+        return ifft2(fft2(stegotext) - fft2(covertext)).real
+
+    def _image_diffusion(self, plaintext, covertext):
+        plaintext = fft2(plaintext)
+        covertext = fft2(covertext)
+        p = np.abs(covertext ** 2)
+        p[p == 0] = 1.
+        diffuse = plaintext * covertext / p
+        diffuse = ifft2(diffuse).real
+        return diffuse / diffuse.max()
+
+    def _inverse_image_diffusion(self, diffuse, covertext):
+        diffuse = fft2(diffuse)
+        covertext = fft2(covertext)
+        plaintext = covertext.conj() * diffuse
+        plaintext = ifft2(plaintext).real
+        return plaintext / plaintext.max()
+    
+    def _stochastic_diffusion(self, diffuse, key):
+        np.random.seed(key)
+        arr_noise = fft2(np.random.rand(*diffuse.shape))
+        p = np.abs(arr_noise ** 2)
+        p[p == 0] = 1
+        diffuse = fft2(diffuse)
+        sdiffuse = diffuse * arr_noise / p
+        sdiffuse = ifft2(sdiffuse).real
+        return sdiffuse / sdiffuse.max()
+
+    def _inverse_stochastic_diffusion(self, sdiffuse, key):
+        np.random.seed(key)
+        noise = fft2(np.random.rand(*sdiffuse.shape))
+        sdiffuse = fft2(sdiffuse)
+        diffuse = noise.conj() * sdiffuse
+        diffuse = ifft2(diffuse).real
+        return diffuse / diffuse.max()
+
+    def encrypt(self, plaintext, covertext):
+        """
+        Hides the plaintext image within the provided covertext image
+        
+        Parameters
+        ==========
+        plaintext : array-like, shape (rows, columns, channels)
+                    The plaintext image to hide.
+                    Values must be ranging from 0 to 1
+
+        covertext : array-like, shape (rows, columns, channels)
+                    The covertext image in which to hide the plaintext.
+                    Values must be ranging from 0 to 1
+
+        Returns
+        =======
+        stegotext : array-like, shape (rows, columns, channels)
+                    The stegotext image
+        """
+
+        c = 0.0001
+
+        if len(covertext.shape) != 2 and len(covertext.shape) != 3:
+            raise Exception(ValueError, \
+                    "Input arrays must be 2- or 3-dimensional")
+
+        # Ensure inputs have the same shape
+        if not np.array_equal(covertext.shape, plaintext.shape):
+            raise Exception(ValueError, \
+                    "Covertext and Plaintext shape do not match")
+
+        covertext_2D = False
+        if len(covertext.shape) == 2:
+            covertext = covertext[:, :, None]
+            plaintext = plaintext[:, :, None]
+            covertext_2D = True
+
+        # Ensure images are 64-bit floating point
+        plaintext = plaintext.astype('float64')
+        covertext = covertext.astype('float64')
+        stegotext = np.zeros_like(covertext)
+
+        for i in range(plaintext.shape[-1]):
+            plaintext_channel = plaintext[:, :, i]
+            covertext_channel = covertext[:, :, i]
+            key = self._key_generator(covertext_channel)
+
+            # Hide each of the channels
+            diff = self._image_diffusion(plaintext_channel,
+                                        covertext_channel)
+            sdiff = self._stochastic_diffusion(diff, key)
+            stegotext[:, :, i] = self._hide_data(covertext_channel,
+                                                sdiff, c)
+
+        if covertext_2D:
+            stegotext = stegotext[:, :, 0]
+        return stegotext
+
+    def decrypt(self, stegotext, covertext):
+        """
+        Hides the plaintext image within the provided
+        covertext image
+        Parameters
+        ==========
+        stegotext : array-like, shape (rows, columns, channels)
+                    The stegotext image in which the plaintext
+                    image is hidden.
+        covertext : array-like, shape (rows, columns, channels)
+                    The covertext image (the key)
+                    Values must be ranging from 0 to 1
+        Returns
+        =======
+        plaintext : array-like, shape (rows, columns, channels)
+                    The hidden plaintext image
+        """
+
+        if len(covertext.shape) != 2 and len(covertext.shape) != 3:
+            raise Exception(ValueError, \
+                "Input arrays must be 2- or 3-dimensional")
+
+        # Ensure inputs have the same shape
+        if not np.array_equal(covertext.shape, stegotext.shape):
+            raise Exception(ValueError, \
+                "Covertext and Stegotext shape do not match")
+    
+        covertext_2D = False
+        if len(covertext.shape) == 2:
+            covertext = covertext[:, :, None]
+            stegotext = stegotext[:, :, None]
+            covertext_2D = True
+
+        stegotext = stegotext.astype('float64')
+        covertext = covertext.astype('float64')
+        plaintext = np.zeros_like(stegotext)
+
+        for i in range(stegotext.shape[-1]):
+            covertext_channel = covertext[:, :, i]
+            stegotext_channel = stegotext[:, :, i]
+            key = self._key_generator(covertext_channel)
+
+            # Recover the plaintext channel
+            sdiff = self._recover_data(covertext_channel,\
+                                        stegotext_channel)
+            diff = self._inverse_stochastic_diffusion(sdiff, key)
+            plaintext[:, :, i] = \
+            self._inverse_image_diffusion(diff, covertext_channel)
+
+        if covertext_2D == True:
+            plaintext = plaintext[:, :, 0]
+        return plaintext
+
+    def save_stegotext_tiff(self, stegotext, filename):
+        """
+        Save stegotext as tiff file
+        Parameters
+        ==========
+        stegotext : array-like, shape (rows, columns, channels)
+                    The stegotext to save
+        filename : str
+                The filename to save the stegotext
+        Returns
+        =======
+        self : object
+        """
+
+        tifffile.imsave(filename, stegotext)
+        return self
+
+    def open_stegotext_tiff(self, filename):
+        """
+        Open a stegotext from a tiff file
+        Parameters
+        ==========
+        filename : str
+        The filename to of the stegotext image
+        Returns
+        =======
+        stegotext : array-like, shape (rows, columns, channels)
+        The stegotext array
+        """
+        stegotext = tifffile.imread(filename)
+        if stegotext.dtype != 'float64':
+            raise Exception(IOError, "Improperly saved stegotext file")
+        return stegotext
+
+    def open_tiff(self, filename):
+        """
+        Open an image from a tiff file
+        Ensures that the tiff array has value (0, 1) after import.
+        Parameters
+        ==========
+        filename : str
+        The filename to of the tiff image
+        Returns
+        =======
+        image : array-like, shape (rows, columns, channels)
+        The normalised image array
+        """
+        tiff_image = tifffile.imread(filename).astype('float64')
+        if tiff_image.max() > 1.0:
+            tiff_image /= 255
+        return tiff_image
+
+# Unit tests
+if __name__ == "__main__":
+
+    import matplotlib, os
+    matplotlib.use('tkagg')
+    import matplotlib.pyplot as pl
+
+    SC = StegCrypt()
+
+    # Produce a random field for the covertext and
+    # plaintext using a seeded rng
+    np.random.seed(3)
+    plaintext = np.random.rand(200, 200, 4)
+    covertext = np.random.rand(200, 200, 4)
+
+    # For each range of channels test the difference
+    # between the plaintext and its decrypted version
+    for i in [1, 2, 3, 4]:
+        p = plaintext[:, :, 0:i]
+        c = covertext[:, :, 0:i]
+        s = SC.encrypt(p, c)
+        p_d = SC.decrypt(s, c)
+        mean_difference = np.mean(np.abs(p - p_d))
+        test = "FAIL"
+        if mean_difference < 1e-3:
+            test = "PASS"
+    print 
+    "Test for channels 0-%d was %s with cost of %f" \
+            %(i-1, test, mean_difference)
+
+    if os.path.exists("Plaintext.tiff") \
+        and os.path.exists("Covertext.tiff"):
+
+        # Now test on the image files
+        plaintext = SC.open_tiff("Plaintext.tiff")[:, :, 0]
+        covertext = SC.open_tiff("Covertext.tiff")[:, :, 0]
+        stegotext = SC.encrypt(plaintext, covertext)
+
+        # Save and re-open the stegotext using the
+        # supplied functionality
+        SC.save_stegotext_tiff(stegotext, "Stegotext.tiff")
+        stegotext = SC.open_stegotext_tiff("Stegotext.tiff")
+
+        # Decrypt the plaintext image
+        plaintext_decrypt = SC.decrypt(stegotext, covertext)
+
+        # Display the results
+        f = pl.figure(figsize = (15, 5))
+        ax = f.add_subplot(131)
+        ax.imshow(plaintext)
+        ax.set_title('Plaintext')
+        pl.axis('off')
+        ax = f.add_subplot(132)
+        ax.imshow(covertext)
+        ax.set_title('Covertext')
+        pl.axis('off')
+        ax = f.add_subplot(133)
+        ax.imshow(plaintext_decrypt)
+        ax.set_title('Decrypted Plaintext')
+        pl.axis('off')
+        pl.tight_layout()
+        pl.show()
+    print
+    "Unit tests finished"
